@@ -306,8 +306,8 @@ class OutlierSelector:
     def _label_axes(self, data, axes):
         for ax, label in zip(axes[:, 0], data.columns):
             ax.set_ylabel(label)
-        for ax, label in zip(axes[-1, :], data.columns):
-            ax.set_xlabel(label)
+        for ax, label in zip(axes[0, :], data.columns):
+            ax.set_title(label)
 
 
 if __name__ == "__main__":
