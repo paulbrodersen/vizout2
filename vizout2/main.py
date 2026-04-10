@@ -208,6 +208,38 @@ class SelectableAnnotatedArtists(SelectableArtists):
         self.artist_to_label[artist].set_visible(False)
 
 
+class SelectableArtistGroups(SelectableAnnotatedArtists):
+    """Augments :py:class:`SelectableAnnotatedArtists` with cross-subplot peer linking.
+
+    When an artist is selected or deselected, all artists representing the same
+    data row in other subplots are selected or deselected accordingly.
+    The peer registry (``artist_to_peers``) is populated externally after all
+    subplots have been created, e.g. by :py:class:`OutlierSelector`.
+
+    """
+    def __init__(self, artists, xy, labels, **kwargs):
+        super().__init__(artists, xy, labels, **kwargs)
+        # Maps each local artist to a list of (group, artist) pairs in other subplots.
+        # Populated externally by OutlierSelector after all subplots are created.
+        self.artist_to_peers = {artist: [] for artist in artists}
+
+
+    def _select_artist(self, artist):
+        if artist in self._selected_artists:
+            return
+        super()._select_artist(artist)
+        for peer_group, peer_artist in self.artist_to_peers[artist]:
+            peer_group._select_artist(peer_artist)
+
+
+    def _deselect_artist(self, artist):
+        if artist not in self._selected_artists:
+            return
+        super()._deselect_artist(artist)
+        for peer_group, peer_artist in self.artist_to_peers[artist]:
+            peer_group._deselect_artist(peer_artist)
+
+
 class OutlierSelector:
 
     def __init__(self, data, markersize=2, **kwargs):
@@ -222,6 +254,7 @@ class OutlierSelector:
 
         self.artist_groups = list(self._draw(data, axes, markersize, **kwargs))
         self._label_axes(data, axes)
+        self._link_peers(data)
         figure.tight_layout()
         plt.show()
 
@@ -229,20 +262,56 @@ class OutlierSelector:
     def _draw(self, data, axes, markersize, **kwargs):
         for ii, x in enumerate(data.columns):
             for jj, y in enumerate(data.columns):
-                artists = list(self._scatter(data[[x, y]].values, axes[ii, jj], markersize, **kwargs))
-                yield(SelectableAnnotatedArtists(
-                    artists, data[[x, y]].values, list(data.index), xytext=(7.5, 5), textcoords="offset points"))
+                artists = self._scatter(data[[x, y]].values, axes[ii, jj], markersize, **kwargs)
+                yield SelectableArtistGroups(
+                    artists, data[[x, y]].values, list(data.index), xytext=(7.5, 5), textcoords="offset points")
 
 
     def _scatter(self, xy, ax, markersize, **kwargs):
         """Re-implement scatter, but each dot is an individual artist."""
+
+        # ax.relim()
+        # ax.autoscale_view()
+        # ax.autoscale is not working for unknown reasons;
+        # also, if the axes are resized after adding the artists
+        minx, miny = np.min(xy, axis=0)
+        maxx, maxy = np.max(xy, axis=0)
+        dx, dy = (maxx - minx), (maxy - miny)
+        padx = 0.05 * dx
+        pady = 0.05 * dy
+        ax.set_xlim(minx - padx, maxx + padx)
+        ax.set_ylim(miny - pady, maxy + pady)
+
         transform = ax.transData + ax.transAxes.inverted()
         xy_in_axis_coordinates = transform.transform(xy)
         radius = 0.01 * markersize # i.e. markersize is expressed as a percentage of the axis
+        artists = []
         for point in xy_in_axis_coordinates:
             artist = plt.Circle(point, radius, transform=ax.transAxes, **kwargs)
             ax.add_patch(artist)
-            yield(artist)
+            artists.append(artist)
+
+        return artists
+
+
+    def _link_peers(self, data):
+        """For every data-row index, collect the corresponding artist from each
+        subplot and register all of them as peers of one another."""
+        n_rows = len(data)
+        for row_idx in range(n_rows):
+            # Build a list of (group, artist) pairs for this data row across all subplots
+            row_peers = [
+                (group, group._selectable_artists[row_idx])
+                for group in self.artist_groups
+            ]
+            # Tell each group about the peers that live in *other* subplots
+            for group in self.artist_groups:
+                local_artist = group._selectable_artists[row_idx]
+                group.artist_to_peers[local_artist] = [
+                    (peer_group, peer_artist)
+                    for peer_group, peer_artist in row_peers
+                    if peer_group is not group
+                ]
 
 
     def _label_axes(self, data, axes):
