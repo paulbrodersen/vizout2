@@ -20,3 +20,5 @@ selector = OutlierSelector(data, markersize=0.05, n_std=3)
 print(selector.get_outliers())
 
 ```
+
+![Example visualisations](./figures/example.png)
