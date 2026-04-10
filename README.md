@@ -16,7 +16,7 @@ data = pd.DataFrame(dict({column : np.random.randn(100) for column in ["Lorem", 
 # (hint: hold Ctrl to select multiple points)
 selector = OutlierSelector(data, markersize=0.05, n_std=3)
 
-# close figure and extract the dataframe index of each marker outlier
+# close figure and extract the dataframe index of each marked outlier
 print(selector.get_outliers())
 
 ```
