@@ -193,7 +193,8 @@ class SelectableAnnotatedArtists(SelectableArtists):
     def __init__(self, artists, xy, labels, **kwargs):
         super().__init__(artists)
         text_objects = list(self._annotate(xy, labels, **kwargs))
-        self.artist_to_label = dict(zip(artists, text_objects))
+        self._artist_to_label = dict(zip(artists, labels))
+        self._artist_to_text_object = dict(zip(artists, text_objects))
 
 
     def _annotate(self, xy, labels, **kwargs):
@@ -203,12 +204,12 @@ class SelectableAnnotatedArtists(SelectableArtists):
 
     def _select_artist(self, artist):
         super()._select_artist(artist)
-        self.artist_to_label[artist].set_visible(True)
+        self._artist_to_text_object[artist].set_visible(True)
 
 
     def _deselect_artist(self, artist):
         super()._deselect_artist(artist)
-        self.artist_to_label[artist].set_visible(False)
+        self._artist_to_text_object[artist].set_visible(False)
 
 
 class SelectableArtistGroups(SelectableAnnotatedArtists):
@@ -224,14 +225,14 @@ class SelectableArtistGroups(SelectableAnnotatedArtists):
         super().__init__(artists, xy, labels, **kwargs)
         # Maps each local artist to a list of (group, artist) pairs in other subplots.
         # Populated externally by OutlierSelector after all subplots are created.
-        self.artist_to_peers = {artist: [] for artist in artists}
+        self._artist_to_peers = {artist: [] for artist in artists}
 
 
     def _select_artist(self, artist):
         if artist in self._selected_artists:
             return
         super()._select_artist(artist)
-        for peer_group, peer_artist in self.artist_to_peers[artist]:
+        for peer_group, peer_artist in self._artist_to_peers[artist]:
             peer_group._select_artist(peer_artist)
 
 
@@ -239,7 +240,7 @@ class SelectableArtistGroups(SelectableAnnotatedArtists):
         if artist not in self._selected_artists:
             return
         super()._deselect_artist(artist)
-        for peer_group, peer_artist in self.artist_to_peers[artist]:
+        for peer_group, peer_artist in self._artist_to_peers[artist]:
             peer_group._deselect_artist(peer_artist)
 
 
@@ -255,7 +256,7 @@ class OutlierSelector:
             figsize=(10, 10), # maximum square figure dimensions in matplotlib
         )
 
-        self.artist_groups = list(self._draw(data, axes, markersize, **kwargs))
+        self._artist_groups = list(self._draw(data, axes, markersize, **kwargs))
         self._draw_standard_deviations(data, axes, n_std)
         self._label_axes(data, axes)
         self._link_peers(data)
@@ -311,16 +312,21 @@ class OutlierSelector:
             # Build a list of (group, artist) pairs for this data row across all subplots
             row_peers = [
                 (group, group._selectable_artists[row_idx])
-                for group in self.artist_groups
+                for group in self._artist_groups
             ]
             # Tell each group about the peers that live in *other* subplots
-            for group in self.artist_groups:
+            for group in self._artist_groups:
                 local_artist = group._selectable_artists[row_idx]
-                group.artist_to_peers[local_artist] = [
+                group._artist_to_peers[local_artist] = [
                     (peer_group, peer_artist)
                     for peer_group, peer_artist in row_peers
                     if peer_group is not group
                 ]
+
+
+    def get_outliers(self):
+        artists = self._artist_groups[0]
+        return [artists._artist_to_label[artist] for artist in artists._selected_artists]
 
 
 def confidence_ellipse(x, y, ax, n_std=3.0, facecolor='none', **kwargs):
@@ -383,7 +389,7 @@ def confidence_ellipse(x, y, ax, n_std=3.0, facecolor='none', **kwargs):
 
 if __name__ == "__main__":
 
-    # Random test data
     n = 100
     df = pd.DataFrame(dict({char : np.random.randn(n) for char in "abc"}))
     p = OutlierSelector(df)
+    print(p.get_outliers())
