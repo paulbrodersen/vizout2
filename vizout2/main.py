@@ -242,7 +242,7 @@ class SelectableArtistGroups(SelectableAnnotatedArtists):
 
 class OutlierSelector:
 
-    def __init__(self, data, markersize=2, **kwargs):
+    def __init__(self, data, markersize=0.05, **kwargs):
 
         total_points, total_columns = data.shape
         figure, axes = plt.subplots(
@@ -264,32 +264,21 @@ class OutlierSelector:
             for jj, y in enumerate(data.columns):
                 artists = self._scatter(data[[x, y]].values, axes[ii, jj], markersize, **kwargs)
                 yield SelectableArtistGroups(
-                    artists, data[[x, y]].values, list(data.index), xytext=(7.5, 5), textcoords="offset points")
+                    artists, data[[x, y]].values, list(data.index),
+                    xytext=(3, 2), textcoords="offset points")
 
 
     def _scatter(self, xy, ax, markersize, **kwargs):
         """Re-implement scatter, but each dot is an individual artist."""
 
-        # ax.relim()
-        # ax.autoscale_view()
-        # ax.autoscale is not working for unknown reasons;
-        # also, if the axes are resized after adding the artists
-        minx, miny = np.min(xy, axis=0)
-        maxx, maxy = np.max(xy, axis=0)
-        dx, dy = (maxx - minx), (maxy - miny)
-        padx = 0.05 * dx
-        pady = 0.05 * dy
-        ax.set_xlim(minx - padx, maxx + padx)
-        ax.set_ylim(miny - pady, maxy + pady)
-
-        transform = ax.transData + ax.transAxes.inverted()
-        xy_in_axis_coordinates = transform.transform(xy)
-        radius = 0.01 * markersize # i.e. markersize is expressed as a percentage of the axis
         artists = []
-        for point in xy_in_axis_coordinates:
-            artist = plt.Circle(point, radius, transform=ax.transAxes, **kwargs)
+        for point in xy:
+            artist = plt.Circle(point, markersize, **kwargs)
             ax.add_patch(artist)
             artists.append(artist)
+
+        ax.relim()
+        ax.autoscale_view()
 
         return artists
 
