@@ -246,7 +246,7 @@ class SelectableArtistGroups(SelectableAnnotatedArtists):
 
 class OutlierSelector:
 
-    def __init__(self, data, markersize=0.05, n_std=2, **kwargs):
+    def __init__(self, data, markersize=0.05, n_std=3, **kwargs):
 
         total_points, total_columns = data.shape
         figure, axes = plt.subplots(
@@ -292,9 +292,10 @@ class OutlierSelector:
         for ii, x in enumerate(data.columns):
             for jj, y in enumerate(data.columns):
                 if ii > jj:
-                    confidence_ellipse(
-                        data[x], data[y], axes[ii, jj], n_std=n_std,
-                        edgecolor="red", linewidth=1)
+                    for ss in range(1, n_std+1):
+                        confidence_ellipse(
+                            data[x], data[y], axes[ii, jj], n_std=ss,
+                            edgecolor="red", linewidth=0.5)
 
 
     def _label_axes(self, data, axes):
@@ -389,7 +390,12 @@ def confidence_ellipse(x, y, ax, n_std=3.0, facecolor='none', **kwargs):
 
 if __name__ == "__main__":
 
-    n = 100
-    df = pd.DataFrame(dict({char : np.random.randn(n) for char in "abc"}))
-    p = OutlierSelector(df)
-    print(p.get_outliers())
+    # generate test data
+    data = pd.DataFrame(dict({column : np.random.randn(100) for column in ["Lorem", "ipsum", "dolor"]}))
+
+    # select outliers with the mouse
+    # (hint: hold Ctrl to select multiple points)
+    selector = OutlierSelector(data, markersize=0.05, n_std=3)
+
+    # close figure and extract the dataframe index of each marker outlier
+    print(selector.get_outliers())
